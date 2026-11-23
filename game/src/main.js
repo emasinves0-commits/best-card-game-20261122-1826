@@ -9,100 +9,100 @@ import { createInput } from './input.js';
 import { stageShot } from './shots.js';
 import { playCardSnap, playDrawWhoosh, playWinFanfare, playLoseSting } from './audio.js';
 
-const params = new URLSearchParams(window.location.search);
-const shot = params.get('shot');
-const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
+const query = new URLSearchParams(window.location.search);
+const shotName = query.get('shot');
+const seedRaw = Number.parseInt(query.get('seed') ?? '', 10);
+const seed = Number.isInteger(seedRaw) ? seedRaw : Math.floor(Math.random() * 4294967296);
 
 const root = document.getElementById('app');
 const status = document.getElementById('status');
 
-function announce(message) {
+function say(message) {
   if (status) status.textContent = message;
 }
 
-function runShot(name) {
+/** Stage one screenshot scene: paint twice, then signal the shot is ready. */
+function stageScene(name) {
   const game = stageShot(name, seed);
   window.__vb = game;
-  let painted = 0;
-  function paint() {
+  let paints = 0;
+  const paintOnce = () => {
     renderGame(game, { root });
-    painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
+    paints += 1;
+    if (paints < 2) requestAnimationFrame(paintOnce);
     else window.__shotReady = true;
-  }
-  requestAnimationFrame(paint);
+  };
+  requestAnimationFrame(paintOnce);
 }
 
-function runGame() {
+/** The interactive game: render after every action, with sound cues on change. */
+function playGame() {
   const game = createGame(seed);
   window.__vb = game;
-  let before = null;
+  let previous = null;
 
-  function snapshot() {
-    return { surgeFlash: game.surgeFlash, lastPlayed: game.lastPlayed, phase: game.phase };
-  }
+  const remember = () => ({ surgeFlash: game.surgeFlash, lastPlayed: game.lastPlayed, phase: game.phase });
 
-  function render() {
+  function paint() {
     renderGame(game, { root });
-    playEffectCues(game, before);
+    playEffectCues(game, previous);
     // A win or a loss lands with a flourish: fanfare on the transition only.
-    if (before && game.phase === 'win' && before.phase !== 'win') playWinFanfare();
-    if (before && game.phase === 'loss' && before.phase !== 'loss') playLoseSting();
-    before = snapshot();
+    if (previous && game.phase === 'win' && previous.phase !== 'win') playWinFanfare();
+    if (previous && game.phase === 'loss' && previous.phase !== 'loss') playLoseSting();
+    previous = remember();
   }
 
-  function start() {
+  function begin() {
     startGame(game);
     game.intent = chooseIntent(game);
     playDrawWhoosh();
-    announce('Playing. Crack the vault before the Magpies do.');
-    render();
+    say('Playing. Crack the vault before the Magpies do.');
+    paint();
+  }
+
+  function restart() {
+    const fresh = createGame(Math.floor(Math.random() * 4294967296));
+    Object.assign(game, fresh);
+    window.__vb = game;
+    say('Back at the title screen.');
+    paint();
   }
 
   createInput(root, {
     onPlayCard(index) {
       if (game.phase !== 'play') return;
-      const ok = playPlayerCard(game, index);
-      if (ok) {
-        playCardSnap();
-        render();
-        if (game.phase === 'win') announce('Vault cracked! You win.');
-        else if (game.phase === 'loss') announce('Busted! You lose.');
-      }
+      if (!playPlayerCard(game, index)) return;
+      playCardSnap();
+      paint();
+      if (game.phase === 'win') say('Vault cracked! You win.');
+      else if (game.phase === 'loss') say('Busted! You lose.');
     },
     onEndTurn() {
       if (game.phase !== 'play') return;
       endPlayerTurn(game);
       playDrawWhoosh();
-      render();
+      paint();
     },
     onStart() {
-      if (game.phase === 'title' || game.phase === 'win' || game.phase === 'loss') start();
+      if (game.phase === 'title' || game.phase === 'win' || game.phase === 'loss') begin();
     },
     onSpace() {
       if (game.phase === 'play') {
         endPlayerTurn(game);
         playDrawWhoosh();
-        render();
+        paint();
       } else {
-        start();
+        begin();
       }
     },
     onBackToTitle() {
-      if (game.phase !== 'title') {
-        const fresh = createGame(Math.floor(Math.random() * 4294967296));
-        Object.assign(game, fresh);
-        window.__vb = game;
-        announce('Back at the title screen.');
-        render();
-      }
+      if (game.phase !== 'title') restart();
     },
   });
 
-  announce('Vaultbreakers. Press Space or click Play to start.');
-  render();
+  say('Vaultbreakers. Press Space or click Play to start.');
+  paint();
 }
 
-if (shot) runShot(shot);
-else runGame();
+if (shotName) stageScene(shotName);
+else playGame();
