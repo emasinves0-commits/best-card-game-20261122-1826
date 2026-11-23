@@ -1,12 +1,15 @@
-// The state machine: turns, energy, SUIT SURGE, damage / block / gold, win and loss.
-// One job only: the rules. It never touches the DOM or the network.
-import { buildDeck, createRng, ENERGY_PER_TURN, HAND_SIZE, MAX_HP } from './cards.js';
+// The rules engine: turns, energy, SUIT SURGE, damage / block / gold, win and loss.
+// This module owns the game state and nothing else — no DOM, no network, no sound.
+import {
+  buildDeck, createRng, seededShuffle, ENERGY_PER_TURN, HAND_SIZE, MAX_HP,
+} from './cards.js';
 
 export const PHASE_TITLE = 'title';
 export const PHASE_PLAY = 'play';
 export const PHASE_WIN = 'win';
 export const PHASE_LOSS = 'loss';
 
+// What a surge does, per suit. The label is what the banner and the log show.
 export const SURGE_EFFECTS = {
   CUT: { label: 'CUT SURGE +3 damage', detail: '+3 damage' },
   LOCK: { label: 'LOCK SURGE +4 block', detail: '+4 block' },
@@ -14,22 +17,64 @@ export const SURGE_EFFECTS = {
   WIRE: { label: 'WIRE SURGE rival discards 1', detail: 'rival discards 1' },
 };
 
-function freshSide(deck) {
-  return { hp: MAX_HP, maxHp: MAX_HP, block: 0, gold: 0, deck, hand: [], discard: [], energyDebt: 0, dot: 0 };
+// How a COIN card pays out, keyed by card id. Each handler gets (game, side).
+const COIN_PLAYS = {
+  goldbar: (game, side) => gainGold(game, side, 4),
+  tipoff: (game, side) => { drawCards(game, side, 1); gainGold(game, side, 2); },
+  insidejob: (game, side) => drawCards(game, side, 2),
+  fenceit: (game, side) => gainGold(game, side, 8),
+  payoff: (game, side) => { gainGold(game, side, 6); drawCards(game, side, 1); },
+  stash: (game, side) => gainGold(game, side, 12),
+};
+
+// How a WIRE card sabotages, keyed by card id. Each handler gets
+// (game, actor, foe, card) and returns the log fragment after the actor's name.
+const WIRE_PLAYS = {
+  cutlines: (game, actor, foe) => { foe.energyDebt += 1; return 'cut lines: rival −1 energy.'; },
+  jammer: (game, actor, foe) => { dropCards(game, foe, 1); return 'jammed: rival discards 1.'; },
+  blackout: (game, actor, foe) => { foe.energyDebt += 2; return 'blackout: rival −2 energy.'; },
+  bugplant: (game, actor, foe, card) => { foe.dot += card.value; return 'planted a bug (3/turn).'; },
+  shortcircuit: (game, actor, foe, card) => {
+    foe.block = 0;
+    const dealt = dealDamage(game, foe, card.value);
+    if (actor === 'player') game.stats.damageDealt += dealt;
+    return `short-circuited: block wiped, ${card.value} damage.`;
+  },
+  static: (game, actor, foe) => { dropCards(game, foe, 2); return 'static: rival discards 2.'; },
+};
+
+const RIVAL_TAUNTS = [
+  'The Magpies keep the vault. Better luck next crew.',
+  'Heard the alarms from three blocks away. Amateur hour.',
+  'We cracked it while you were still reading the manual.',
+];
+
+// One side of the table: health, block, gold, and the three card piles.
+function newCrew(deck) {
+  return {
+    hp: MAX_HP,
+    maxHp: MAX_HP,
+    block: 0,
+    gold: 0,
+    deck,
+    hand: [],
+    discard: [],
+    energyDebt: 0,
+    dot: 0,
+  };
 }
 
-/** A brand-new game. `seed` fixes every shuffle, so the same seed replays the same game. */
+/** A brand-new game. `seed` fixes every shuffle, so one seed always replays one game. */
 export function createGame(seed) {
-  const rng = createRng(seed);
   const game = {
     seed,
-    rng,
+    rng: createRng(seed),
     phase: PHASE_TITLE,
     turn: 0,
     energy: ENERGY_PER_TURN,
     energyMax: ENERGY_PER_TURN,
-    player: freshSide(buildDeck(seed)),
-    rival: freshSide(buildDeck(seed ^ 0x9e3779b9)),
+    player: newCrew(buildDeck(seed)),
+    rival: newCrew(buildDeck(seed ^ 0x9e3779b9)),
     playedSuits: [],
     surgedSuits: [],
     intent: null,
@@ -42,9 +87,17 @@ export function createGame(seed) {
   return game;
 }
 
+/** Newest log line first; the play log only ever shows the last four. */
 export function addLog(game, text) {
   game.log.unshift(text);
-  if (game.log.length > 4) game.log.length = 4;
+  if (game.log.length > 4) game.log.splice(4);
+}
+
+/** Move `count` cards from a side's hand into its discard pile. */
+function dropCards(game, side, count) {
+  for (let i = 0; i < count && side.hand.length > 0; i += 1) {
+    side.discard.push(side.hand.pop());
+  }
 }
 
 /** Draw from `side`'s deck into its hand, reshuffling the discard when the deck runs dry. */
@@ -52,21 +105,15 @@ export function drawCards(game, side, count) {
   for (let i = 0; i < count; i += 1) {
     if (side.deck.length === 0) {
       if (side.discard.length === 0) return;
-      side.deck = side.discard;
+      side.deck = seededShuffle(side.discard, game.rng);
       side.discard = [];
-      // Reshuffle with the game's rng so the order stays deterministic per seed.
-      for (let j = side.deck.length - 1; j > 0; j -= 1) {
-        const k = Math.floor(game.rng() * (j + 1));
-        const tmp = side.deck[j];
-        side.deck[j] = side.deck[k];
-        side.deck[k] = tmp;
-      }
     }
     side.hand.push(side.deck.pop());
   }
 }
 
-function drawToHand(game, side) {
+/** Fill a side's hand back up to the standard hand size. */
+function topUpHand(game, side) {
   const missing = HAND_SIZE - side.hand.length;
   if (missing > 0) drawCards(game, side, missing);
 }
@@ -80,11 +127,11 @@ export function startPlayerTurn(game) {
   game.surgedSuits = [];
   game.surgeFlash = null;
   game.player.block = 0;
-  drawToHand(game, game.player);
+  topUpHand(game, game.player);
   addLog(game, `Turn ${game.turn} — you draw to ${game.player.hand.length}.`);
 }
 
-/** Begin a game from the title screen: both sides draw, rival intent is set. */
+/** Begin a game from the title screen: both sides draw, rival intent is set later. */
 export function startGame(game) {
   game.phase = PHASE_PLAY;
   game.turn = 0;
@@ -92,7 +139,7 @@ export function startGame(game) {
   game.rival.gold = 0;
   game.stats = { cardsPlayed: 0, damageDealt: 0, goldEarned: 0, turnsPlayed: 0 };
   game.log = [];
-  drawToHand(game, game.rival);
+  topUpHand(game, game.rival);
   startPlayerTurn(game);
   game.intent = null; // set by ai.js after the rival's first turn is planned
   addLog(game, 'The vault hums. Crack it before the Magpies do.');
@@ -115,61 +162,24 @@ export function gainGold(game, side, amount) {
   if (side === game.player) game.stats.goldEarned += amount;
 }
 
-function rivalDiscard(game, count) {
-  for (let i = 0; i < count && game.rival.hand.length > 0; i += 1) {
-    const card = game.rival.hand.pop();
-    game.rival.discard.push(card);
-  }
-}
-
 /** Apply one card's effect. `actor` is 'player' or 'rival'; the other side is the target. */
 export function applyCardEffect(game, actor, card) {
   const me = actor === 'player' ? game.player : game.rival;
   const foe = actor === 'player' ? game.rival : game.player;
   const who = actor === 'player' ? 'You' : 'Magpies';
-  switch (card.suit) {
-    case 'CUT': {
-      const dealt = dealDamage(game, foe, card.value);
-      if (actor === 'player') game.stats.damageDealt += dealt;
-      addLog(game, `${who} hit ${card.name} for ${card.value} (${dealt} through).`);
-      break;
-    }
-    case 'LOCK': {
-      me.block += card.value;
-      addLog(game, `${who} raised ${card.value} block (${card.name}).`);
-      break;
-    }
-    case 'COIN': {
-      if (card.id === 'goldbar') gainGold(game, me, 4);
-      else if (card.id === 'tipoff') { drawCards(game, me, 1); gainGold(game, me, 2); }
-      else if (card.id === 'insidejob') drawCards(game, me, 2);
-      else if (card.id === 'fenceit') gainGold(game, me, 8);
-      else if (card.id === 'payoff') { gainGold(game, me, 6); drawCards(game, me, 1); }
-      else if (card.id === 'stash') gainGold(game, me, 12);
-      addLog(game, `${who} played ${card.name} (+gold).`);
-      break;
-    }
-    case 'WIRE': {
-      if (card.id === 'cutlines') { foe.energyDebt += 1; addLog(game, `${who} cut lines: rival −1 energy.`); }
-      else if (card.id === 'jammer') { discardFrom(game, foe, 1); addLog(game, `${who} jammed: rival discards 1.`); }
-      else if (card.id === 'blackout') { foe.energyDebt += 2; addLog(game, `${who} blackout: rival −2 energy.`); }
-      else if (card.id === 'bugplant') { foe.dot += card.value; addLog(game, `${who} planted a bug (3/turn).`); }
-      else if (card.id === 'shortcircuit') {
-        foe.block = 0;
-        const dealt = dealDamage(game, foe, card.value);
-        if (actor === 'player') game.stats.damageDealt += dealt;
-        addLog(game, `${who} short-circuited: block wiped, ${card.value} damage.`);
-      } else if (card.id === 'static') { discardFrom(game, foe, 2); addLog(game, `${who} static: rival discards 2.`); }
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-function discardFrom(game, side, count) {
-  for (let i = 0; i < count && side.hand.length > 0; i += 1) {
-    side.discard.push(side.hand.pop());
+  if (card.suit === 'CUT') {
+    const dealt = dealDamage(game, foe, card.value);
+    if (actor === 'player') game.stats.damageDealt += dealt;
+    addLog(game, `${who} hit ${card.name} for ${card.value} (${dealt} through).`);
+  } else if (card.suit === 'LOCK') {
+    me.block += card.value;
+    addLog(game, `${who} raised ${card.value} block (${card.name}).`);
+  } else if (card.suit === 'COIN') {
+    COIN_PLAYS[card.id](game, me);
+    addLog(game, `${who} played ${card.name} (+gold).`);
+  } else if (card.suit === 'WIRE') {
+    const fragment = WIRE_PLAYS[card.id](game, actor, foe, card);
+    addLog(game, `${who} ${fragment}`);
   }
 }
 
@@ -190,11 +200,22 @@ export function maybeSurge(game, actor, card) {
     gainGold(game, me, 3);
     drawCards(game, me, 1);
   } else if (card.suit === 'WIRE') {
-    discardFrom(game, foe, 1);
+    dropCards(game, foe, 1);
   }
   game.surgeFlash = { suit: card.suit, label: effect.label, actor };
   addLog(game, `SURGE! ${effect.label}`);
   return effect;
+}
+
+/** Resolve a card play shared by both sides: effect, surge, bookkeeping, end check. */
+function resolvePlay(game, actor, card) {
+  game.lastPlayed = { ...card, actor };
+  applyCardEffect(game, actor, card);
+  maybeSurge(game, actor, card);
+  game.playedSuits.push(card.suit);
+  const side = actor === 'player' ? game.player : game.rival;
+  side.discard.push(card);
+  checkEnd(game);
 }
 
 /** Play the player's card at `handIndex`. Returns false when it cannot be played. */
@@ -205,12 +226,7 @@ export function playPlayerCard(game, handIndex) {
   game.player.hand.splice(handIndex, 1);
   game.energy -= card.cost;
   game.stats.cardsPlayed += 1;
-  game.lastPlayed = { ...card, actor: 'player' };
-  applyCardEffect(game, 'player', card);
-  maybeSurge(game, 'player', card);
-  game.playedSuits.push(card.suit);
-  game.player.discard.push(card);
-  checkEnd(game);
+  resolvePlay(game, 'player', card);
   return true;
 }
 
@@ -219,12 +235,7 @@ export function playRivalCard(game, handIndex) {
   const card = game.rival.hand[handIndex];
   if (!card) return false;
   game.rival.hand.splice(handIndex, 1);
-  game.lastPlayed = { ...card, actor: 'rival' };
-  applyCardEffect(game, 'rival', card);
-  maybeSurge(game, 'rival', card);
-  game.playedSuits.push(card.suit);
-  game.rival.discard.push(card);
-  checkEnd(game);
+  resolvePlay(game, 'rival', card);
   return true;
 }
 
@@ -234,12 +245,6 @@ export function ratingFor(game) {
   return 'SLOPPY';
 }
 
-const TAUNTS = [
-  'The Magpies keep the vault. Better luck next crew.',
-  'Heard the alarms from three blocks away. Amateur hour.',
-  'We cracked it while you were still reading the manual.',
-];
-
 export function checkEnd(game) {
   if (game.phase !== PHASE_PLAY) return;
   if (game.rival.hp <= 0) {
@@ -247,12 +252,12 @@ export function checkEnd(game) {
     addLog(game, 'VAULT CRACKED! The gold is yours.');
   } else if (game.player.hp <= 0) {
     game.phase = PHASE_LOSS;
-    game.taunt = TAUNTS[Math.floor(game.rng() * TAUNTS.length)];
+    game.taunt = RIVAL_TAUNTS[Math.floor(game.rng() * RIVAL_TAUNTS.length)];
     addLog(game, 'BUSTED! The Magpies walk away with the vault.');
   }
 }
 
-/** Rival upkeep at the start of its turn: lingering bug damage, then energy debt. */
+/** Rival upkeep at the start of its turn: lingering bug damage, then the end check. */
 export function rivalUpkeep(game) {
   if (game.rival.dot > 0) {
     const dealt = dealDamage(game, game.rival, game.rival.dot);
