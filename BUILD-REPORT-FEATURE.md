@@ -62,4 +62,7 @@ Consecutive wins, kept across games in `localStorage`:
 
 ## 7. Push
 
-(Filled after the PAT push + contents-API verification.)
+- Local commit: `cc77693` ("Add HEIST STREAK: consecutive wins, starting-gold bonus, streak UI").
+- 10 files pushed via PAT (`github_pat.py upload-file`, all 200/201): `game/src/streak.js` (new), `game/src/game.js`, `game/src/render.js`, `game/src/shots.js`, `game/css/table.css`, `screenshots/01-table.jpg`, `02-title.jpg`, `03-win.jpg`, `04-loss.jpg`, `BUILD-REPORT-FEATURE.md`.
+- **Remote HEAD: `e4861e355f6e79081eb1576bd3b44bffb5b3b709`** (the BUILD-REPORT-FEATURE.md commit).
+- Verified via the GitHub contents API (`~/workspace/makefun/card-shots/verify-push.py`): remote 23 files, **0 mismatches, 0 missing** — every remote blob SHA matches the local file.
