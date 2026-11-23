@@ -1,0 +1,214 @@
+/* VAULTBREAKERS — dark green felt table, neon gold accents, big readable cards. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: #0a0f0a;
+  font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  color: #f5efe0;
+}
+#app { width: 1280px; height: 720px; margin: 0 auto; position: relative; overflow: hidden; }
+#status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.table {
+  width: 1280px; height: 720px; padding: 10px 18px 8px;
+  background:
+    radial-gradient(ellipse at 50% 30%, #1d4a26 0%, #12351a 45%, #0a2410 100%);
+  border: 6px solid #6b4d1a;
+  outline: 2px solid #f5b301;
+  display: flex; flex-direction: column; gap: 6px;
+  position: relative;
+}
+
+/* ---------- Top bar ---------- */
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.objective {
+  font-size: 15px; font-weight: 800; letter-spacing: 0.5px; color: #ffd75e;
+  background: rgba(0,0,0,0.45); border: 1px solid #f5b301; border-radius: 8px;
+  padding: 7px 12px;
+}
+.counts { display: flex; gap: 8px; }
+.count-chip {
+  font-size: 14px; font-weight: 800; color: #fff;
+  background: rgba(0,0,0,0.5); border: 1px solid #8a8a7a; border-radius: 8px;
+  padding: 7px 10px;
+}
+.gold-chip { color: #ffd75e; border-color: #f5b301; }
+
+/* ---------- Side rows (rival / player) ---------- */
+.rival-row, .player-row { display: flex; align-items: center; gap: 16px; }
+.side-info { width: 330px; flex-shrink: 0; }
+.side-title { font-size: 16px; font-weight: 900; letter-spacing: 1px; margin-bottom: 3px; }
+.rival-title { color: #d8b4fe; }
+.player-title { color: #ffd75e; }
+.hp-wrap { display: flex; align-items: center; gap: 8px; }
+.hp-name { font-size: 11px; font-weight: 800; color: #cfc9b8; width: 38px; }
+.hp-bar {
+  flex: 1; height: 20px; background: #1a1a1a; border: 2px solid #000;
+  border-radius: 10px; overflow: hidden;
+}
+.hp-fill { height: 100%; background: linear-gradient(90deg, #37d67a, #1fae5f); transition: width 0.35s ease; }
+.hp-fill.hp-low { background: linear-gradient(90deg, #ff5a5a, #c81e1e); }
+.hp-nums { font-size: 14px; font-weight: 900; color: #fff; white-space: nowrap; }
+.block-badge { color: #7db4ff; margin-left: 6px; font-size: 13px; }
+.side-sub { font-size: 12px; color: #b8bfae; margin-top: 2px; }
+
+/* ---------- Rival face-down hand ---------- */
+.rival-hand { display: flex; gap: 6px; }
+.rival-hand .card { width: 74px; height: 104px; transform: rotate(-2deg); }
+.rival-hand .card:nth-child(2n) { transform: rotate(2deg); }
+
+/* ---------- Middle row ---------- */
+.mid-row { display: flex; gap: 16px; align-items: stretch; flex: 1; min-height: 0; }
+.banners { width: 400px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.intent-banner {
+  font-size: 21px; font-weight: 900; letter-spacing: 0.5px; color: #fff;
+  background: linear-gradient(90deg, #7c2d12, #9a3412);
+  border: 2px solid #fb923c; border-radius: 10px; padding: 10px 14px;
+  box-shadow: 0 0 18px rgba(251,146,60,0.45);
+}
+.intent-sabotage { background: linear-gradient(90deg, #4c1d95, #6b21a8); border-color: #c084fc; box-shadow: 0 0 18px rgba(168,85,247,0.5); }
+.surge-banner {
+  font-size: 20px; font-weight: 900; color: #1a1200; text-align: center;
+  background: linear-gradient(90deg, #ffd75e, #f5b301); border-radius: 10px; padding: 8px;
+  animation: surgePulse 0.7s ease-in-out infinite alternate;
+}
+@keyframes surgePulse { from { transform: scale(1); } to { transform: scale(1.04); } }
+.hint { font-size: 12px; color: #b8bfae; line-height: 1.5; }
+.centre-spot { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.centre-label { font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #ffd75e; }
+.centre-empty { font-size: 13px; color: #7d8a76; font-style: italic; }
+.centre-spot .card { width: 110px; height: 154px; }
+/* The centre-spot and preview cards are smaller than a hand card: their effect
+   text and quick-play key would spill past the card's edge, so hide them —
+   cost, icon, value, name and suit already say what the card is. */
+.centre-spot .card-text, .centre-spot .card-key,
+.preview-strip .card-text, .preview-strip .card-key { display: none; }
+.play-log {
+  width: 300px; flex-shrink: 0; background: rgba(0,0,0,0.5);
+  border: 1px solid #4a5a44; border-radius: 10px; padding: 8px 10px;
+  font-size: 12.5px; line-height: 1.45; overflow: hidden;
+}
+.log-title { font-size: 11px; font-weight: 900; letter-spacing: 2px; color: #ffd75e; margin-bottom: 4px; }
+.log-line { color: #e8e4d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Player row: energy + combo + end turn ---------- */
+.energy-pips { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.45); border: 1px solid #f5b301; border-radius: 10px; padding: 8px 12px; }
+.energy-label { font-size: 13px; font-weight: 900; letter-spacing: 1px; color: #ffd75e; }
+.energy-pip { font-size: 22px; color: #3a3a32; }
+.energy-pip.on { color: #ffd75e; text-shadow: 0 0 10px #f5b301; }
+.combo-meter { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.45); border: 1px solid #4a5a44; border-radius: 10px; padding: 8px 12px; }
+.combo-label { font-size: 13px; font-weight: 900; letter-spacing: 1px; color: #cfc9b8; }
+.combo-chip {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; border-radius: 50%; border: 2px solid #555;
+  color: var(--suit-color, #888); background: #111; opacity: 0.45;
+}
+.combo-chip.played { opacity: 1; border-color: var(--suit-color); }
+.combo-chip.surged { opacity: 1; border-color: #ffd75e; background: var(--suit-color); color: #fff; box-shadow: 0 0 12px var(--suit-color); }
+.end-turn-btn {
+  margin-left: auto; font-size: 18px; font-weight: 900; letter-spacing: 1px;
+  color: #1a1200; background: linear-gradient(180deg, #ffd75e, #e8a800);
+  border: 2px solid #fff3c4; border-radius: 10px; padding: 12px 22px; cursor: pointer;
+}
+.end-turn-btn:hover:not(:disabled) { filter: brightness(1.1); }
+.end-turn-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ---------- Cards ---------- */
+.card {
+  width: 128px; height: 178px; border-radius: 12px; flex-shrink: 0;
+  background: linear-gradient(180deg, #fffdf5 0%, #f3ead2 100%);
+  border: 3px solid var(--suit-color, #888);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.55);
+  color: #1a1a1a; position: relative; padding: 6px 8px;
+  display: flex; flex-direction: column; align-items: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: default; user-select: none;
+}
+.card.playable { cursor: pointer; }
+.card.playable:hover { transform: translateY(-16px) scale(1.06); box-shadow: 0 12px 22px rgba(0,0,0,0.65), 0 0 0 2px var(--suit-color); z-index: 5; }
+.card.unplayable { filter: saturate(0.55) brightness(0.82); }
+.card-cost {
+  position: absolute; top: 5px; left: 5px; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--suit-color); color: #fff; font-size: 17px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid rgba(0,0,0,0.25);
+}
+.card-icon { font-size: 34px; color: var(--suit-color); line-height: 1; margin-top: 10px; text-shadow: 0 2px 0 rgba(0,0,0,0.15); }
+.card-value { font-size: 32px; font-weight: 900; color: var(--suit-dark, #333); line-height: 1; margin-top: 2px; }
+.card-name { font-size: 14.5px; font-weight: 900; text-align: center; line-height: 1.1; margin-top: 2px; min-height: 32px; }
+.card-suit { font-size: 12px; font-weight: 900; color: var(--suit-color); letter-spacing: 1px; }
+.card-text { font-size: 11.5px; line-height: 1.25; text-align: center; color: #444; margin-top: 3px; }
+.card-key {
+  position: absolute; bottom: 4px; right: 6px; font-size: 10px; font-weight: 800;
+  color: #999; border: 1px solid #bbb; border-radius: 4px; padding: 0 4px;
+}
+.card-back {
+  background: repeating-linear-gradient(45deg, #2b1a4d 0 10px, #3b2568 10px 20px);
+  border-color: #a855f7; align-items: center; justify-content: center;
+}
+.card-back-mark { font-size: 30px; color: #c084fc; }
+.card-back-word { font-size: 10px; font-weight: 900; letter-spacing: 2px; color: #d8b4fe; }
+
+/* ---------- Player hand ---------- */
+.player-hand {
+  display: flex; justify-content: center; gap: 10px; min-height: 182px;
+  padding-top: 14px;
+}
+.hand-empty { color: #b8bfae; font-style: italic; padding-top: 70px; }
+
+/* ---------- Overlays ---------- */
+.overlay {
+  position: absolute; inset: 0; z-index: 20;
+  background: rgba(4, 12, 6, 0.82);
+  display: flex; align-items: center; justify-content: center;
+}
+.panel {
+  width: 880px; max-height: 700px; overflow: hidden;
+  background: linear-gradient(180deg, #14291a, #0b1a10);
+  border: 3px solid #f5b301; border-radius: 16px; padding: 22px 30px;
+  text-align: center; box-shadow: 0 0 60px rgba(245,179,1,0.35);
+  position: relative;
+}
+.title-kicker, .end-kicker { font-size: 14px; font-weight: 900; letter-spacing: 5px; color: #ffd75e; }
+.game-title, .end-title {
+  font-size: 64px; font-weight: 900; letter-spacing: 2px; line-height: 1;
+  color: #ffd75e; text-shadow: 0 0 24px rgba(245,179,1,0.6), 0 4px 0 #6b4d1a;
+  margin: 6px 0;
+}
+.end-title { font-size: 58px; }
+.loss-panel .end-title { color: #ff5a5a; text-shadow: 0 0 24px rgba(229,72,77,0.6), 0 4px 0 #5b1111; }
+.loss-panel { border-color: #e5484d; box-shadow: 0 0 60px rgba(229,72,77,0.35); }
+.title-sub, .end-sub { font-size: 17px; color: #e8e4d8; margin-bottom: 12px; }
+.rules-panel { text-align: left; background: rgba(0,0,0,0.4); border: 1px solid #4a5a44; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+.rules-title { font-size: 13px; font-weight: 900; letter-spacing: 2px; color: #ffd75e; margin-bottom: 4px; }
+.rule-line { font-size: 13.5px; line-height: 1.5; color: #e8e4d8; }
+.deck-preview { margin-bottom: 12px; }
+.preview-label { font-size: 12px; font-weight: 900; letter-spacing: 2px; color: #cfc9b8; margin-bottom: 6px; }
+.preview-strip { display: flex; justify-content: center; gap: 10px; }
+.preview-strip .card { width: 104px; height: 146px; }
+.preview-strip .card-icon { font-size: 28px; margin-top: 20px; }
+.preview-strip .card-value { font-size: 32px; }
+.preview-strip .card-name { font-size: 12px; min-height: 26px; }
+.preview-strip .card-text { font-size: 10px; }
+.play-btn {
+  font-size: 22px; font-weight: 900; letter-spacing: 1px; color: #1a1200;
+  background: linear-gradient(180deg, #ffd75e, #e8a800);
+  border: 3px solid #fff3c4; border-radius: 12px; padding: 14px 34px; cursor: pointer;
+}
+.play-btn:hover { filter: brightness(1.12); }
+.title-foot { font-size: 12.5px; color: #b8bfae; margin-top: 10px; }
+
+.end-stats { background: rgba(0,0,0,0.45); border: 1px solid #4a5a44; border-radius: 10px; padding: 12px 20px; margin: 6px 0 16px; }
+.stat-row { display: flex; justify-content: space-between; font-size: 17px; padding: 4px 0; border-bottom: 1px dashed #3a4a38; }
+.stat-row:last-child { border-bottom: none; }
+.stat-label { font-weight: 800; color: #cfc9b8; letter-spacing: 1px; }
+.stat-value { font-weight: 900; color: #ffd75e; }
+
+/* ---------- Confetti ---------- */
+.confetti-piece {
+  position: absolute; top: -12px; width: 10px; height: 16px; z-index: 30;
+  animation: confettiFall linear infinite; opacity: 0.95;
+}
+@keyframes confettiFall {
+  to { transform: translateY(720px) rotate(720deg); }
+}
