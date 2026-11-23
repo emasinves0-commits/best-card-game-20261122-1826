@@ -38,6 +38,8 @@ function autopilotTurn(game) {
 /** Mid-game table: two full rounds in, a rich hand, intent banner up, log full. */
 function stageTable(seed) {
   const game = createGame(seed);
+  // A fresh crew for the frame: no streak banked, so no starting-gold bonus.
+  game.streakRecord = { streak: 0, best: 0 };
   startGame(game);
   game.intent = chooseIntent(game);
   autopilotTurn(game);
@@ -54,6 +56,8 @@ function stageTable(seed) {
 /** Title screen: a fresh game that has not started yet. */
 function stageTitle(seed) {
   const game = createGame(seed);
+  // A crew on a 2-win run: the title shows the streak and its +4 gold bonus.
+  game.streakRecord = { streak: 2, best: 5 };
   game.phase = 'title';
   return game;
 }
@@ -61,6 +65,8 @@ function stageTitle(seed) {
 /** Win: rig a near-end state (rival at 5 HP, Thermite in hand), then play it out. */
 function stageWin(seed) {
   const game = createGame(seed);
+  // A crew on a 2-win run: the win banks a third, best stays 5.
+  game.streakRecord = { streak: 2, best: 5 };
   startGame(game);
   game.rival.hp = 5;
   game.rival.block = 0;
@@ -79,6 +85,8 @@ function stageWin(seed) {
 /** Loss: rig a near-end state (you at 4 HP), then let the Magpies finish it. */
 function stageLoss(seed) {
   const game = createGame(seed);
+  // A crew on a 2-win run: the loss breaks it, best stays 5.
+  game.streakRecord = { streak: 2, best: 5 };
   startGame(game);
   game.player.hp = 4;
   game.player.block = 0;
