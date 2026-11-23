@@ -3,6 +3,9 @@
 import {
   buildDeck, createRng, seededShuffle, ENERGY_PER_TURN, HAND_SIZE, MAX_HP,
 } from './cards.js';
+import {
+  loadStreakRecord, streakStartBonus, applyStreakWin, applyStreakLoss,
+} from './streak.js';
 
 export const PHASE_TITLE = 'title';
 export const PHASE_PLAY = 'play';
@@ -83,6 +86,7 @@ export function createGame(seed) {
     lastPlayed: null,
     stats: { cardsPlayed: 0, damageDealt: 0, goldEarned: 0, turnsPlayed: 0 },
     taunt: '',
+    streakRecord: loadStreakRecord(),
   };
   return game;
 }
@@ -135,13 +139,15 @@ export function startPlayerTurn(game) {
 export function startGame(game) {
   game.phase = PHASE_PLAY;
   game.turn = 0;
-  game.player.gold = 0;
+  // A running streak buys starting gold: +2 per win in a row, capped at +10.
+  game.player.gold = streakStartBonus(game.streakRecord.streak);
   game.rival.gold = 0;
   game.stats = { cardsPlayed: 0, damageDealt: 0, goldEarned: 0, turnsPlayed: 0 };
   game.log = [];
   topUpHand(game, game.rival);
   startPlayerTurn(game);
   game.intent = null; // set by ai.js after the rival's first turn is planned
+  if (game.player.gold > 0) addLog(game, `Streak bonus: +${game.player.gold} gold to start.`);
   addLog(game, 'The vault hums. Crack it before the Magpies do.');
 }
 
@@ -249,9 +255,13 @@ export function checkEnd(game) {
   if (game.phase !== PHASE_PLAY) return;
   if (game.rival.hp <= 0) {
     game.phase = PHASE_WIN;
+    // A win banks one more in a row (and may set a new best).
+    game.streakRecord = applyStreakWin(game.streakRecord);
     addLog(game, 'VAULT CRACKED! The gold is yours.');
   } else if (game.player.hp <= 0) {
     game.phase = PHASE_LOSS;
+    // A loss breaks the run. The best stands.
+    game.streakRecord = applyStreakLoss(game.streakRecord);
     game.taunt = RIVAL_TAUNTS[Math.floor(game.rng() * RIVAL_TAUNTS.length)];
     addLog(game, 'BUSTED! The Magpies walk away with the vault.');
   }
