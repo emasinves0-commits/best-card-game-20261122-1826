@@ -240,3 +240,12 @@ body {
 @keyframes confettiFall {
   to { transform: translateY(720px) rotate(720deg); }
 }
+
+/* ---------- HEIST STREAK — the running win count ---------- */
+.streak-row {
+  margin: 8px auto 4px; padding: 8px 14px; max-width: 460px;
+  background: rgba(245, 179, 1, 0.10); border: 1px solid #8a6d1a; border-radius: 10px;
+}
+.streak-line { font-size: 17px; font-weight: 900; letter-spacing: 1px; color: #ffd75e; }
+.streak-bonus { font-size: 13px; color: #d8d2bd; margin-top: 2px; }
+.streak-chip { border-color: #8a6d1a; color: #ffd75e; }
