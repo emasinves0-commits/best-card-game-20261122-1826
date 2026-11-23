@@ -3,6 +3,7 @@
 import { SUITS } from './cards.js';
 import { intentLabel } from './ai.js';
 import { ratingFor } from './game.js';
+import { streakLine, streakBonusLine } from './streak.js';
 import {
   playBlockShimmer, playCoinChime, playDamageThud, playSurgeFanfare,
 } from './audio.js';
@@ -116,6 +117,7 @@ function topBar(game) {
   const counts = mk('div', 'counts');
   counts.appendChild(mk('span', 'count-chip', `TURN ${Math.max(1, game.turn)}`));
   counts.appendChild(mk('span', 'count-chip gold-chip', `⬤ GOLD ${game.player.gold}`));
+  counts.appendChild(mk('span', 'count-chip streak-chip', `🔥 STREAK ${game.streakRecord.streak}`));
   counts.appendChild(mk('span', 'count-chip', `DECK ${game.player.deck.length}`));
   counts.appendChild(mk('span', 'count-chip', `DISCARD ${game.player.discard.length}`));
   bar.appendChild(counts);
@@ -201,6 +203,14 @@ export function renderGame(game, ui) {
 
 // ---- Overlays: title screen and the two end screens. ----
 
+/** The streak readout: current run + best, and what the streak buys this heist. */
+function streakBanner(record) {
+  const wrap = mk('div', 'streak-row');
+  wrap.appendChild(mk('div', 'streak-line', streakLine(record)));
+  wrap.appendChild(mk('div', 'streak-bonus', streakBonusLine(record)));
+  return wrap;
+}
+
 const TITLE_RULES = [
   '◆ CUT (red) deals damage · ■ LOCK (blue) gains block · ● COIN (gold) earns gold · ⚡ WIRE (purple) sabotages the Magpies.',
   'Both crews have 30 HP. You get 3 energy a turn and draw to 5 cards.',
@@ -223,6 +233,7 @@ function titleOverlay(game) {
   panel.appendChild(mk('div', 'title-kicker', 'A HEIST CARD DUEL'));
   panel.appendChild(mk('h1', 'game-title', 'VAULTBREAKERS'));
   panel.appendChild(mk('div', 'title-sub', 'Two crews. One vault. Crack it first.'));
+  panel.appendChild(streakBanner(game.streakRecord));
   const rules = mk('div', 'rules-panel');
   rules.appendChild(mk('div', 'rules-title', 'HOW TO PLAY'));
   for (const line of TITLE_RULES) rules.appendChild(mk('div', 'rule-line', line));
@@ -250,6 +261,7 @@ function endOverlay(game, won) {
   panel.appendChild(mk('div', 'end-sub', won
     ? `You cracked the vault and walked out with the gold. Rating: ${ratingFor(game)}`
     : game.taunt || 'The Magpies keep the vault.'));
+  panel.appendChild(streakBanner(game.streakRecord));
   const stats = mk('div', 'end-stats');
   const rows = [
     ['💰 LOOT (GOLD)', String(game.player.gold)],
